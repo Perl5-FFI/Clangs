@@ -52,6 +52,15 @@ package Clangs {
     },
   );
 
+  has default_lib => (
+    is      => 'ro',
+    isa     => 'Maybe[Clangs::Lib]',
+    lazy    => 1,
+    default => sub ($self) {
+      [grep { $_->valid } $self->libs->@*]->[0];
+    },
+  );
+
   package Clangs::Lib {
 
     use Moose;

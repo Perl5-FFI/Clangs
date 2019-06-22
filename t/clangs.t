@@ -34,6 +34,14 @@ subtest 'libs' => sub {
     ;
   }
 
+  is(
+    Clangs->default_lib,
+    object {
+      call valid => T();
+    },
+    '->default_libs returns valid lib'
+  );
+
 };
 
 done_testing;
