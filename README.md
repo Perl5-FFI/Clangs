@@ -1,4 +1,4 @@
-# Clangs [![Build Status](https://secure.travis-ci.org/plicease/Clangs.png)](http://travis-ci.org/plicease/Clangs)
+# Clangs [![Build Status](https://secure.travis-ci.org/Perl5-FFI/Clangs.png)](http://travis-ci.org/Perl5-FFI/Clangs)
 
 Interface to libclang useful for FFI development
 
