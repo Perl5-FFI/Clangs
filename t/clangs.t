@@ -44,4 +44,29 @@ subtest 'libs' => sub {
 
 };
 
+subtest 'generate_class' => sub {
+
+  my $i = 0;
+
+  foreach my $lib (Clangs->libs->@*)
+  {
+    next unless $lib->valid;
+    subtest $lib->version_string => sub {
+
+      my $class = "Foo::Bar@{[ $i++ ]}";
+      $lib->generate_classes($class);
+
+      my $index = "${class}::Index"->new;
+      isa_ok $index, "${class}::Index";
+
+      is $index->ptr, D(), "index->ptr = @{[ $index->ptr ]}";
+
+      undef $index;
+      pass 'DEMOLISH does not crash';
+
+    };
+  }
+
+};
+
 done_testing;

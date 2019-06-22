@@ -10,6 +10,7 @@ package Clangs {
   use Path::Tiny ();
   use File::Glob ();
   use Sort::Versions ();
+  use Moose::Util ();
 
 # ABSTRACT: Interface to libclang useful for FFI development
 # VERSION
@@ -123,6 +124,75 @@ package Clangs {
         defined $self->version_string ? 1 : 0;
       },
     );
+
+    sub generate_classes ($self, $class)
+    {
+      my $ffi = FFI::Platypus->new;
+      $ffi->lib($self->path->stringify);
+      $ffi->mangler(sub ($symbol) {
+        $symbol =~ s/^/clang_/r;
+      });
+
+      my $build = sub ($xsub, $, @args) {
+        $xsub->(@args);
+      };
+
+      my $method = sub ($xsub, $self) {
+        $xsub->($self->ptr);
+      };
+
+      eval qq{ package ${class}::Index; use Moose; };
+      die if $@;
+
+      my $f1 = $ffi->function( createIndex => ['int','int'] => 'opaque', $build );
+      join('::', $class, 'Index')->meta->add_method(_create_index => sub { $f1->call(@_) });
+      my $f2 = $ffi->function( disposeIndex => ['opaque'] => 'void', $method );
+      join('::', $class, 'Index')->meta->add_method(_dispose_index => sub { $f2->call(@_) });
+
+      Moose::Util::apply_all_roles(join('::', $class, 'Index'), 'Clangs::Index');
+    }
+
+  }
+
+  package Clangs::Index {
+
+    use Moose::Role;
+    use 5.024;
+    use experimental 'refaliasing';
+    use experimental 'signatures';
+
+    requires '_create_index';
+    requires '_dispose_index';
+
+    has exclude_declarations_from_pch => (
+      is      => 'ro',
+      isa     => 'Bool',
+      default => sub { 1 },
+    );
+
+    has display_diagnostics => (
+      is      => 'ro',
+      isa     => 'Bool',
+      default => sub { 1 },
+    );
+
+    has ptr => (
+      is        => 'ro',
+      isa       => 'Int',
+      lazy      => 1,
+      predicate => 'has_ptr',
+      default   => sub ($self) {
+        $self->_create_index($self->exclude_declarations_from_pch, $self->display_diagnostics);
+      }
+    );
+
+    sub DEMOLISH ($self, $global)
+    {
+      if($self->has_ptr && !$global)
+      {
+        $self->_dispose_index;
+      }
+    }
 
   }
 
