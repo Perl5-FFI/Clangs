@@ -1,11 +1,11 @@
 use Test2::V0 -no_srand => 1;
 use 5.024;
 use Test2::Util::Table qw( table );
-use FFI::Clang;
+use Clangs;
 
 subtest 'libs' => sub {
 
-  my @libs = FFI::Clang->libs->@*;
+  my @libs = Clangs->libs->@*;
 
   is
     \@libs,

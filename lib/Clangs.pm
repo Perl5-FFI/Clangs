@@ -1,4 +1,4 @@
-package FFI::Clang {
+package Clangs {
 
   use MooseX::Singleton;
   use 5.024;
@@ -16,7 +16,7 @@ package FFI::Clang {
 
   has libs => (
     is      => 'ro',
-    isa     => 'ArrayRef[FFI::Clang::Lib]',
+    isa     => 'ArrayRef[Clangs::Lib]',
     lazy    => 1,
     default => sub ($self) {
 
@@ -34,14 +34,14 @@ package FFI::Clang {
         verify => sub ($name, $path, @) {
           if($name =~ /^clang-(?<version>[0-9\.]+)$/)
           {
-            push @list, FFI::Clang::Lib->new(
+            push @list, Clangs::Lib->new(
               path    => Path::Tiny->new($path)->absolute,
               version => $+{version},
             );
           }
           elsif($name eq 'clang')
           {
-            push @list, FFI::Clang::Lib->new(
+            push @list, Clangs::Lib->new(
               path    => Path::Tiny->new($path)->absolute,
             );
           }
@@ -52,7 +52,7 @@ package FFI::Clang {
     },
   );
 
-  package FFI::Clang::Lib {
+  package Clangs::Lib {
 
     use Moose;
     use 5.024;

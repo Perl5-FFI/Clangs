@@ -1,4 +1,4 @@
-# FFI::Clang [![Build Status](https://secure.travis-ci.org/plicease/FFI-Clang.png)](http://travis-ci.org/plicease/FFI-Clang)
+# Clangs [![Build Status](https://secure.travis-ci.org/plicease/Clangs.png)](http://travis-ci.org/plicease/Clangs)
 
 Interface to libclang useful for FFI development
 

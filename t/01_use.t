@@ -1,7 +1,7 @@
 use Test2::V0 -no_srand => 1;
 sub require_ok ($);
 
-require_ok 'FFI::Clang';
+require_ok 'Clangs';
 
 done_testing;
 
