@@ -141,15 +141,16 @@ package Clangs {
         $xsub->($self->ptr);
       };
 
-      eval qq{ package ${class}::Index; use Moose; };
+      my $index_class = "${class}::Index";
+      eval qq{ package $index_class; use Moose; };
       die if $@;
 
       my $f1 = $ffi->function( createIndex => ['int','int'] => 'opaque', $build );
-      join('::', $class, 'Index')->meta->add_method(_create_index => sub { $f1->call(@_) });
+      $index_class->meta->add_method(_create_index => sub { $f1->call(@_) });
       my $f2 = $ffi->function( disposeIndex => ['opaque'] => 'void', $method );
-      join('::', $class, 'Index')->meta->add_method(_dispose_index => sub { $f2->call(@_) });
+      $index_class->meta->add_method(_dispose_index => sub { $f2->call(@_) });
 
-      Moose::Util::apply_all_roles(join('::', $class, 'Index'), 'Clangs::Index');
+      Moose::Util::apply_all_roles($index_class->meta, 'Clangs::Index');
     }
 
   }
