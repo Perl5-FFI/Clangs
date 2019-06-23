@@ -4,6 +4,7 @@ package Clangs {
   use 5.024;
   use experimental 'refaliasing';
   use experimental 'signatures';
+  use namespace::autoclean;
 
   use FFI::Platypus 0.88;
   use FFI::CheckLib ();
@@ -71,6 +72,7 @@ package Clangs {
     use 5.024;
     use experimental 'refaliasing';
     use experimental 'signatures';
+    use namespace::autoclean;
 
     has path => (
       is       => 'ro',
@@ -136,35 +138,25 @@ package Clangs {
         $symbol =~ s/^/clang_/r;
       });
 
-      my $build = sub ($xsub, $, @args) {
-        $xsub->(@args);
+      my $make_make = sub ($wrapper) {
+        sub ($name, $args, $ret) {
+          my $f = $ffi->function( $name => $args => $ret, $wrapper );
+          sub { $f->call(@_) }
+        }
       };
 
-      my $method = sub ($xsub, $self) {
-        $xsub->($self->ptr);
-      };
-
-      my $make_build = sub ($name, $args, $ret) {
-        my $f = $ffi->function( $name => $args => $ret => sub ($xsub, $, @args) {
-          $xsub->(@args);
-        });
-        sub { $f->call(@_) };
-      };
-
-      my $make_method = sub ($name, $args, $ret) {
-        my $f = $ffi->function( $name => $args => $ret => sub ($xsub, $, @args) {
-          $xsub->($self->ptr);
-        });
-        sub { $f->call(@_) };
-      };
+      my $make_build  = $make_make->(sub ($xsub, $, @args)     { $xsub->(@args)             });
+      my $make_method = $make_make->(sub ($xsub, $self, @args) { $xsub->($self->ptr, @args) });
 
       my $meta = Moose::Meta::Class->create(
         "${class}::Index",
         methods => {
-          _create_index => $make_build->( createIndex => ['int','int'] => 'opaque' ),
-          _dispose_index => $make_method->( disposeIndex => ['opaque'] => 'void' ),
+          _create_index  => $make_build ->( createIndex  => ['int','int'] => 'opaque' ),
+          _dispose_index => $make_method->( disposeIndex => ['opaque']    => 'void'   ),
+          lib            => sub { $self },
         },
-        roles => ['Clangs::Index'],
+        superclasses => ['Moose::Object'],
+        roles        => ['Clangs::Index'],
       );
       $meta->make_immutable;
     }
@@ -178,9 +170,11 @@ package Clangs {
     use 5.024;
     use experimental 'refaliasing';
     use experimental 'signatures';
+    use namespace::autoclean;
 
     requires '_create_index';
     requires '_dispose_index';
+    requires 'lib';
 
     has exclude_declarations_from_pch => (
       is      => 'ro',
@@ -206,6 +200,7 @@ package Clangs {
 
     sub DEMOLISH ($self, $global)
     {
+      #warn "here";
       if($self->has_ptr && !$global)
       {
         $self->_dispose_index;

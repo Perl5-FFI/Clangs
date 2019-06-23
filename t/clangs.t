@@ -1,7 +1,16 @@
 use Test2::V0 -no_srand => 1;
 use 5.024;
 use Test2::Util::Table qw( table );
+use Test::Memory::Cycle;
+use Test::Moose::More;
+use Scalar::Util qw( weaken );
 use Clangs;
+
+subtest 'sugar removal' => sub {
+  check_sugar_removed_ok 'Clangs';
+  check_sugar_removed_ok 'Clangs::Lib';
+  check_sugar_removed_ok 'Clangs::Index';
+};
 
 subtest 'libs' => sub {
 
@@ -61,8 +70,25 @@ subtest 'generate_class' => sub {
 
       is $index->ptr, D(), "index->ptr = @{[ $index->ptr ]}";
 
+      my $ref = $index;
+      weaken $ref;
+      is $ref, D(), 'weak ref ok';
+
+      memory_cycle_ok $index, 'no memory leak';
+
+      #my $demolished;
+      #my $mock = mock "Clangs::Index" => (
+      #  after => [
+      #    DEMOLISH => sub {
+      #      $demolished++;
+      #    }
+      #  ],
+      #);
+
       undef $index;
-      pass 'DEMOLISH does not crash';
+      is $ref, U(), 'Index freed';
+
+      #is $demolished, T(), 'DEMOLISH called';
 
     };
   }
