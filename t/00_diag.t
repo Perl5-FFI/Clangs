@@ -14,6 +14,9 @@ $modules{$_} = $_ for qw(
   FFI::CheckLib
   FFI::Platypus
   Moose
+  Moose::Meta::Class
+  Moose::Role
+  Moose::Util
   MooseX::Singleton
   Path::Tiny
   Sort::Versions

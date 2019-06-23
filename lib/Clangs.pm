@@ -11,6 +11,7 @@ package Clangs {
   use File::Glob ();
   use Sort::Versions ();
   use Moose::Util ();
+  use Moose::Meta::Class ();
 
 # ABSTRACT: Interface to libclang useful for FFI development
 # VERSION
@@ -61,6 +62,8 @@ package Clangs {
       [grep { $_->valid } $self->libs->@*]->[0];
     },
   );
+
+  __PACKAGE__->meta->make_immutable;
 
   package Clangs::Lib {
 
@@ -141,18 +144,32 @@ package Clangs {
         $xsub->($self->ptr);
       };
 
-      my $index_class = "${class}::Index";
-      eval qq{ package $index_class; use Moose; };
-      die if $@;
+      my $make_build = sub ($name, $args, $ret) {
+        my $f = $ffi->function( $name => $args => $ret => sub ($xsub, $, @args) {
+          $xsub->(@args);
+        });
+        sub { $f->call(@_) };
+      };
 
-      my $f1 = $ffi->function( createIndex => ['int','int'] => 'opaque', $build );
-      $index_class->meta->add_method(_create_index => sub { $f1->call(@_) });
-      my $f2 = $ffi->function( disposeIndex => ['opaque'] => 'void', $method );
-      $index_class->meta->add_method(_dispose_index => sub { $f2->call(@_) });
+      my $make_method = sub ($name, $args, $ret) {
+        my $f = $ffi->function( $name => $args => $ret => sub ($xsub, $, @args) {
+          $xsub->($self->ptr);
+        });
+        sub { $f->call(@_) };
+      };
 
-      Moose::Util::apply_all_roles($index_class->meta, 'Clangs::Index');
+      my $meta = Moose::Meta::Class->create(
+        "${class}::Index",
+        methods => {
+          _create_index => $make_build->( createIndex => ['int','int'] => 'opaque' ),
+          _dispose_index => $make_method->( disposeIndex => ['opaque'] => 'void' ),
+        },
+        roles => ['Clangs::Index'],
+      );
+      $meta->make_immutable;
     }
 
+    __PACKAGE__->meta->make_immutable;
   }
 
   package Clangs::Index {
