@@ -3,4 +3,5 @@
 set -ex
 
 cip sudo apt-get update
-cip sudo apt-get install -y libclang-3.8-dev libclang-3.9-dev libclang-4.0-dev
+cip sudo apt-get install -y libclang-3.8-dev libclang-3.9-dev libclang-4.0-dev libffi-dev
+cip exec cpanm https://cpan.metacpan.org/authors/id/P/PL/PLICEASE/FFI-Platypus-0.89_01.tar.gz

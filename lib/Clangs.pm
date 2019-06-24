@@ -6,7 +6,7 @@ package Clangs {
   use experimental 'signatures';
   use namespace::autoclean;
 
-  use FFI::Platypus 0.88;
+  use FFI::Platypus 0.89;
   use FFI::CheckLib ();
   use Path::Tiny ();
   use File::Glob ();
@@ -141,8 +141,8 @@ package Clangs {
       $ffi->type('int'    => 'CXErrorCode');   # enum
 
       {
-        my $get_c_string   = $ffi->function( getCString      => ['opaque'] => 'string' );
-        my $dispose_string = $ffi->function( disposeString   => ['opaque'] => 'void'   );
+        my $get_c_string   = $ffi->function( getCString      => ['opaque'] => 'string' )->sub_ref;
+        my $dispose_string = $ffi->function( disposeString   => ['opaque'] => 'void'   )->sub_ref;
 
         $ffi->custom_type( 'CXString' => {
           native_type => 'opaque',
@@ -156,8 +156,7 @@ package Clangs {
 
       my $make_make = sub ($wrapper) {
         sub ($name, $args, $ret) {
-          my $f = $ffi->function( $name => $args => $ret, $wrapper );
-          sub { $f->call(@_) }
+          $ffi->function( $name => $args => $ret, $wrapper )->sub_ref;
         }
       };
 
