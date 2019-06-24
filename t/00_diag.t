@@ -10,18 +10,24 @@ my %modules;
 my $post_diag;
 
 $modules{$_} = $_ for qw(
+  Capture::Tiny
   ExtUtils::MakeMaker
   FFI::CheckLib
   FFI::Platypus
+  File::Which
   Moose
   Moose::Meta::Class
   Moose::Role
   Moose::Util
   MooseX::Singleton
+  MooseX::Types::Path::Tiny
   Path::Tiny
   Sort::Versions
   Test2::Util::Table
   Test2::V0
+  Test::Memory::Cycle
+  Test::Moose::More
+  namespace::autoclean
 );
 
 

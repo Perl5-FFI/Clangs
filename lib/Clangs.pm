@@ -1,7 +1,7 @@
 package Clangs {
 
   use MooseX::Singleton;
-  use 5.024;
+  use 5.026;
   use experimental 'refaliasing';
   use experimental 'signatures';
   use namespace::autoclean;
@@ -69,7 +69,7 @@ package Clangs {
   package Clangs::Lib {
 
     use Moose;
-    use 5.024;
+    use 5.026;
     use experimental 'refaliasing';
     use experimental 'signatures';
     use namespace::autoclean;
@@ -146,7 +146,7 @@ package Clangs {
 
         $ffi->custom_type( 'CXString' => {
           native_type => 'opaque',
-          native_to_perl => sub ($ptr) {
+          native_to_perl => sub ($ptr, $) {
             my $str = $get_c_string->($ptr);
             $dispose_string->($ptr);
             $str;
@@ -160,8 +160,15 @@ package Clangs {
         }
       };
 
-      my $make_build  = $make_make->(sub ($xsub, $, @args)     { $xsub->(@args)             });
-      my $make_method = $make_make->(sub ($xsub, $self, @args) { $xsub->($self->ptr, @args) });
+      my $make_build  = $make_make->(sub ($xsub, $, @args) {
+        @_ = @args;
+        goto &$xsub;
+      });
+
+      my $make_method = $make_make->(sub ($xsub, $self, @args) {
+        @_ = ($self->ptr, @args);
+        goto &$xsub;
+      });
 
       {
         my $meta = Moose::Meta::Class->create(
@@ -189,8 +196,9 @@ package Clangs {
             _parse_translation_unit_2 => $make_build->( parseTranslationUnit2 => [
               'CXIndex',             # Index
               'string',              # filename
-              'string*',             # command line args
-              'opaque',              # (CXUnsavedFile*) unsaved_files
+              'string[]',            # command line args
+              'int',                 # num_command_line_args
+              'opaque[]',            # (CXUnsavedFile*) unsaved_files
               'uint',                # num_unsaved_files
               'uint',                # options
               'opaque*',             # (CXTranslationUnit*) out_TU
@@ -198,14 +206,15 @@ package Clangs {
             _parse_translation_unit_2_full_argv => $make_build->( parseTranslationUnit2FullArgv => [
               'CXIndex',             # Index
               'string',              # filename
-              'string*',             # command line args
-              'opaque',              # (CXUnsavedFile*) unsaved_files
+              'string[]',            # command line args
+              'int',                 # num_command_line_args
+              'opaque[]',            # (CXUnsavedFile*) unsaved_files
               'uint',                # num_unsaved_files
               'uint',                # options
               'opaque*',             # (CXTranslationUnit*) out_TU
             ] => 'CXErrorCode'),
             _dispose_translation_unit => $make_method->( disposeTranslationUnit => ['CXTranslationUnit'] => 'void' ),
-            _translation_unit_spelling => $make_method->( getTranslationUnitSpelling => ['CXTranslationUnit'] => 'CXString' ),
+            spelling => $make_method->( getTranslationUnitSpelling => ['CXTranslationUnit'] => 'CXString' ),
           },
           superclass => ['Moose::Object'],
           roles      => ['Clangs::TranslationUnit'],
@@ -220,7 +229,7 @@ package Clangs {
   package Clangs::Index {
 
     use Moose::Role;
-    use 5.024;
+    use 5.026;
     use experimental 'refaliasing';
     use experimental 'signatures';
     use namespace::autoclean;
@@ -264,33 +273,97 @@ package Clangs {
   package Clangs::TranslationUnit {
 
     use Moose::Role;
-    use 5.024;
-    use experimental 'refaliasing';
-    use experimental 'signatures';
+    use 5.026;
+    use experimental 'refaliasing', 'signatures', 'declared_refs';
     use namespace::autoclean;
+    use MooseX::Types::Path::Tiny qw( Path );
 
     requires '_create_translation_unit_2';
     requires '_parse_translation_unit_2';
     requires '_parse_translation_unit_2_full_argv';
     requires '_dispose_translation_unit';
-    requires '_translation_unit_spelling';
+    requires 'spelling';
+
+    has full_argv => (
+      is      => 'ro',
+      isa     => 'Bool',
+      default => sub { 0 },
+    );
+
+    has command_line => (
+      is      => 'ro',
+      isa     => 'ArrayRef[Str]',
+      lazy    => 1,
+      default => sub ($self) {
+        $self->full_argv ? [$0] : [];
+      },
+    );
 
     has ptr => (
+      is        => 'ro',
+      isa       => 'Int',
+      lazy      => 1,
+      predicate => 'has_ptr',
+      default   => sub ($self) {
+
+        my $code;
+
+        if($self->filename->basename =~ /\.ast$/)
+        {
+          my $ptr;
+          $code = $self->_create_translation_unit_2(
+            $self->index->ptr,
+            $self->filename->stringify,
+            \$ptr,
+          );
+          return $ptr unless $code != 0;
+        }
+        elsif($self->filename->basename =~ /\.[ch]$/)
+        {
+          my $ptr;
+          my \@command_line = $self->command_line;
+          my @args = (
+            $self->index->ptr,
+            $self->filename->stringify,
+            \@command_line,
+            scalar(@command_line),
+            [],
+            0,
+            0,
+            \$ptr,
+          );
+          $code = !$self->full_argv
+            ? $self->_parse_translation_unit_2(@args)
+            : $self->_parse_translation_unit_2_full_argv(@args);
+          return $ptr unless $code != 0;
+        }
+        else
+        {
+          Carp::croak "unknown filetype: @{[ $self->filename ]}";
+        }
+
+        # handle it when $code is not 0
+        warn "code = $code";
+        ...;
+      },
+    );
+
+    has index => (
       is       => 'ro',
-      isa      => 'Int',
+      isa      => 'Clangs::Index',
       required => 1,
     );
 
-    sub BUILDARGS {
-      my $orig = shift;
-      my $class = shift;
-    
-      ...;
-    }
+    has filename => (
+      is       => 'ro',
+      isa      => Path,
+      required => 1,
+      coerce   => 1,
+    );
 
     sub DEMOLISH ($self, $global)
     {
-      if(!$global)
+      if($self->has_ptr && !$global)
       {
         $self->_dispose_translation_unit;
       }

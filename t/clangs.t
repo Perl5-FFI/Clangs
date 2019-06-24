@@ -4,6 +4,8 @@ use Test2::Util::Table qw( table );
 use Test::Memory::Cycle;
 use Test::Moose::More;
 use Scalar::Util qw( weaken );
+use File::Which qw( which );
+use Capture::Tiny qw( capture_merged );
 use Clangs;
 
 subtest 'sugar removal' => sub {
@@ -67,9 +69,60 @@ subtest 'generate_class' => sub {
       $lib->generate_classes($class);
 
       my $index = "${class}::Index"->new;
-      isa_ok $index, "${class}::Index";
+      does_ok $index, 'Clangs::Index';
 
       is $index->ptr, D(), "index->ptr = @{[ $index->ptr ]}";
+
+      subtest 'tu without full argv' => sub {
+        my $tu = "${class}::TranslationUnit"->new(
+          index => $index,
+          filename => 'corpus/foo.c',
+          full_argv => 0,
+        );
+        does_ok $tu, 'Clangs::TranslationUnit';
+        is $tu->spelling, 'corpus/foo.c', 'tu->spelling';
+      };
+
+      subtest 'to with full argv' => sub {
+        my $tu = "${class}::TranslationUnit"->new(
+          index     => $index,
+          filename  => 'corpus/foo.c',
+          full_argv => 1,
+        );
+        does_ok $tu, 'Clangs::TranslationUnit';
+        is $tu->spelling, 'corpus/foo.c', 'tu->spelling';
+      };
+
+      subtest 'tu with ast' => sub {
+        my $clang = which 'clang';
+        skip_all 'requires clang exe' unless $clang;
+
+        # most likely the problem here is that we need for clang exe
+        # to match libclang.
+        my $todo = todo 'not quite right';
+        my @cmd = qw( clang -emit-ast corpus/foo.c -o corpus/foo.ast );
+        my($out, $exit) = capture_merged {
+          print "+ @cmd";
+          system @cmd;
+          $?;
+        };
+        note $out;
+        is $exit, 0, 'exit ok';
+        ok -f "corpus/foo.ast", "apparently generated ast";
+
+        local $@ = '';
+        eval {
+          my $tu = "${class}::TranslationUnit"->new(
+            index     => $index,
+            filename  => 'corpus/foo.ast',
+          );
+          does_ok $tu, 'Clangs::TranslationUnit';
+          like $tu->spelling, qr{corpus/foo.c$};
+        };
+        is "$@", '', 'no exception';
+
+        unlink 'corpus/foo.ast';
+      };
 
       my $ref = $index;
       weaken $ref;
