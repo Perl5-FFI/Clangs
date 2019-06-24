@@ -137,6 +137,9 @@ package Clangs {
       $ffi->mangler(sub ($symbol) {
         $symbol =~ s/^/clang_/r;
       });
+      $ffi->type('opaque' => 'CXIndex');
+      $ffi->type('opaque' => 'CXTranslationUnit');
+      $ffi->type('int'    => 'CXErrorCode');   # enum
 
       my $make_make = sub ($wrapper) {
         sub ($name, $args, $ret) {
@@ -148,17 +151,40 @@ package Clangs {
       my $make_build  = $make_make->(sub ($xsub, $, @args)     { $xsub->(@args)             });
       my $make_method = $make_make->(sub ($xsub, $self, @args) { $xsub->($self->ptr, @args) });
 
-      my $meta = Moose::Meta::Class->create(
-        "${class}::Index",
-        methods => {
-          _create_index  => $make_build ->( createIndex  => ['int','int'] => 'opaque' ),
-          _dispose_index => $make_method->( disposeIndex => ['opaque']    => 'void'   ),
-          lib            => sub { $self },
-        },
-        superclasses => ['Moose::Object'],
-        roles        => ['Clangs::Index'],
-      );
-      $meta->make_immutable;
+      {
+        my $meta = Moose::Meta::Class->create(
+          "${class}::Index",
+          methods => {
+            _create_index  => $make_build ->( createIndex  => ['int','int'] => 'CXIndex' ),
+            _dispose_index => $make_method->( disposeIndex => ['CXIndex']    => 'void'   ),
+            lib            => sub { $self },
+          },
+          superclasses => ['Moose::Object'],
+          roles        => ['Clangs::Index'],
+        );
+        $meta->make_immutable;
+      }
+
+      {
+        my $meta = Moose::Meta::Class->create(
+          "${class}::TranslationUnit",
+          methods => {
+            _parse_translation_unit_2 => $make_build->( parseTranslationUnit2 => [
+              'CXIndex',             # Index
+              'string',              # filename
+              'string*',             # command line args
+              'opaque',              # (CXUnsavedFile*) unsaved_files
+              'uint',                # num_unsaved_files
+              'uint',                # options
+              'opaque*',             # (CXTranslationUnit*) out_TU
+            ] => 'CXErrorCode'),
+            _dispose_translation_unit => $make_method->( disposeTranslationUnit => ['CXTranslationUnit'] => 'void' ),
+          },
+          superclass => ['Moose::Object'],
+          roles      => ['Clangs::TranslationUnit'],
+        );
+        $meta->make_immutable;
+      }
     }
 
     __PACKAGE__->meta->make_immutable;
@@ -200,10 +226,43 @@ package Clangs {
 
     sub DEMOLISH ($self, $global)
     {
-      #warn "here";
       if($self->has_ptr && !$global)
       {
         $self->_dispose_index;
+      }
+    }
+
+  }
+
+  package Clangs::TranslationUnit {
+
+    use Moose::Role;
+    use 5.024;
+    use experimental 'refaliasing';
+    use experimental 'signatures';
+    use namespace::autoclean;
+
+    requires '_parse_translation_unit_2';
+    requires '_dispose_translation_unit';
+
+    has ptr => (
+      is       => 'ro',
+      isa      => 'Int',
+      required => 1,
+    );
+
+    sub BUILDARGS {
+      my $orig = shift;
+      my $class = shift;
+    
+      ...;
+    }
+
+    sub DEMOLISH ($self, $global)
+    {
+      if(!$global)
+      {
+        $self->_dispose_translation_unit;
       }
     }
 

@@ -10,6 +10,7 @@ subtest 'sugar removal' => sub {
   check_sugar_removed_ok 'Clangs';
   check_sugar_removed_ok 'Clangs::Lib';
   check_sugar_removed_ok 'Clangs::Index';
+  check_sugar_removed_ok 'Clangs::TranslationUnit';
 };
 
 subtest 'libs' => sub {
