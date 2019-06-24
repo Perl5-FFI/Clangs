@@ -96,13 +96,14 @@ package Clangs {
       default => sub ($self) {
         my $ffi = FFI::Platypus->new;
         $ffi->lib($self->path->stringify);
+        $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
 
         local $@ = '';
         my($get_version, $get_c_string, $dispose_string) = eval {
           (
-            $ffi->function( clang_getClangVersion => []         => 'opaque' ),
-            $ffi->function( clang_getCString      => ['opaque'] => 'string' ),
-            $ffi->function( clang_disposeString   => ['opaque'] => 'void'   ),
+            $ffi->function( getClangVersion => []         => 'opaque' ),
+            $ffi->function( getCString      => ['opaque'] => 'string' ),
+            $ffi->function( disposeString   => ['opaque'] => 'void'   ),
           )
         };
 
@@ -134,12 +135,24 @@ package Clangs {
     {
       my $ffi = FFI::Platypus->new;
       $ffi->lib($self->path->stringify);
-      $ffi->mangler(sub ($symbol) {
-        $symbol =~ s/^/clang_/r;
-      });
+      $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
       $ffi->type('opaque' => 'CXIndex');
       $ffi->type('opaque' => 'CXTranslationUnit');
       $ffi->type('int'    => 'CXErrorCode');   # enum
+
+      {
+        my $get_c_string   = $ffi->function( getCString      => ['opaque'] => 'string' );
+        my $dispose_string = $ffi->function( disposeString   => ['opaque'] => 'void'   );
+
+        $ffi->custom_type( 'CXString' => {
+          native_type => 'opaque',
+          native_to_perl => sub ($ptr) {
+            my $str = $get_c_string->($ptr);
+            $dispose_string->($ptr);
+            $str;
+          },
+        });
+      }
 
       my $make_make = sub ($wrapper) {
         sub ($name, $args, $ret) {
@@ -169,6 +182,11 @@ package Clangs {
         my $meta = Moose::Meta::Class->create(
           "${class}::TranslationUnit",
           methods => {
+            _create_translation_unit_2 => $make_build->( createTranslationUnit2 => [
+              'CXIndex',             # Index
+              'string',              # ast_filename
+              'opaque*',             # (CXTranslationUnit*) out_TU
+            ] => 'CXErrorCode' ),
             _parse_translation_unit_2 => $make_build->( parseTranslationUnit2 => [
               'CXIndex',             # Index
               'string',              # filename
@@ -178,7 +196,17 @@ package Clangs {
               'uint',                # options
               'opaque*',             # (CXTranslationUnit*) out_TU
             ] => 'CXErrorCode'),
+            _parse_translation_unit_2_full_argv => $make_build->( parseTranslationUnit2FullArgv => [
+              'CXIndex',             # Index
+              'string',              # filename
+              'string*',             # command line args
+              'opaque',              # (CXUnsavedFile*) unsaved_files
+              'uint',                # num_unsaved_files
+              'uint',                # options
+              'opaque*',             # (CXTranslationUnit*) out_TU
+            ] => 'CXErrorCode'),
             _dispose_translation_unit => $make_method->( disposeTranslationUnit => ['CXTranslationUnit'] => 'void' ),
+            _translation_unit_spelling => $make_method->( getTranslationUnitSpelling => ['CXTranslationUnit'] => 'CXString' ),
           },
           superclass => ['Moose::Object'],
           roles      => ['Clangs::TranslationUnit'],
@@ -242,8 +270,11 @@ package Clangs {
     use experimental 'signatures';
     use namespace::autoclean;
 
+    requires '_create_translation_unit_2';
     requires '_parse_translation_unit_2';
+    requires '_parse_translation_unit_2_full_argv';
     requires '_dispose_translation_unit';
+    requires '_translation_unit_spelling';
 
     has ptr => (
       is       => 'ro',
