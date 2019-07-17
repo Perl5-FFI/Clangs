@@ -278,6 +278,41 @@ package Clangs {
 
   }
 
+  package Clangs::Error {
+
+    use Moose;
+    use 5.026;
+    use experimental 'refaliasing', 'signatures', 'declared_refs';
+    use namespace::autoclean;
+    use overload '""' => sub { shift->as_string };
+
+    has code => (
+      is       => 'ro',
+      isa      => 'Int',
+      required => 1,
+    );
+
+    around BUILDARGS => sub
+    {
+      my($orig, $class, $code) = @_;
+      $class->$orig ( code => $code );
+    };
+
+    my %strings = (
+      0 => 'success',
+      1 => 'failure',
+      2 => 'crashed',
+      3 => 'invalid arguments',
+      4 => 'ast read error',
+    );
+
+    sub as_string
+    {
+      $strings{shift->code} // 'unknown';
+    }
+
+  }
+
   package Clangs::TranslationUnit {
 
     use Moose::Role;
@@ -314,17 +349,16 @@ package Clangs {
       predicate => 'has_ptr',
       default   => sub ($self) {
 
-        my $code;
-
         if($self->filename->basename =~ /\.ast$/)
         {
           my $ptr;
-          $code = $self->_create_translation_unit_2(
+          my $code = $self->_create_translation_unit_2(
             $self->index->ptr,
             $self->filename->stringify,
             \$ptr,
           );
           return $ptr unless $code != 0;
+          die Clangs::Error->new($code);
         }
         elsif($self->filename->basename =~ /\.[ch]$/)
         {
@@ -340,19 +374,16 @@ package Clangs {
             0,
             \$ptr,
           );
-          $code = !$self->full_argv
+          my $code = !$self->full_argv
             ? $self->_parse_translation_unit_2(@args)
             : $self->_parse_translation_unit_2_full_argv(@args);
           return $ptr unless $code != 0;
+          die Clangs::Error->new($code);
         }
         else
         {
           Carp::croak "unknown filetype: @{[ $self->filename ]}";
         }
-
-        # handle it when $code is not 0
-        warn "code = $code";
-        ...;
       },
     );
 
