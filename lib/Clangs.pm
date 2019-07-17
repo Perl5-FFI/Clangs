@@ -6,7 +6,7 @@ package Clangs {
   use experimental 'signatures';
   use namespace::autoclean;
 
-  use FFI::Platypus 0.89;
+  use FFI::Platypus 0.91;
   use FFI::CheckLib ();
   use Path::Tiny ();
   use File::Glob ();
@@ -94,7 +94,7 @@ package Clangs {
       isa     => 'Maybe[Str]',
       lazy    => 1,
       default => sub ($self) {
-        my $ffi = FFI::Platypus->new;
+        my $ffi = FFI::Platypus->new( api => 1, experimental => 1 );
         $ffi->lib($self->path->stringify);
         $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
 
@@ -133,12 +133,20 @@ package Clangs {
 
     sub generate_classes ($self, $class)
     {
-      my $ffi = FFI::Platypus->new;
+      my $ffi = FFI::Platypus->new( api => 1, experimental => 1 );
       $ffi->lib($self->path->stringify);
       $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
       $ffi->type('opaque' => 'CXIndex');
       $ffi->type('opaque' => 'CXTranslationUnit');
-      $ffi->type('int'    => 'CXErrorCode');   # enum
+      $ffi->type('opaque' => 'CXUnsavedFile');
+      if(eval { $ffi->type('enum'); 1 })
+      {
+        $ffi->type('enum' => 'CXErrorCode');
+      }
+      else
+      {
+        $ffi->type('uint32' => 'CXErrorCode');
+      }
 
       {
         my $get_c_string   = $ffi->function( getCString      => ['opaque'] => 'string' )->sub_ref;
@@ -191,27 +199,27 @@ package Clangs {
             _create_translation_unit_2 => $make_build->( createTranslationUnit2 => [
               'CXIndex',             # Index
               'string',              # ast_filename
-              'opaque*',             # (CXTranslationUnit*) out_TU
+              'CXTranslationUnit*',  # (CXTranslationUnit*) out_TU
             ] => 'CXErrorCode' ),
             _parse_translation_unit_2 => $make_build->( parseTranslationUnit2 => [
               'CXIndex',             # Index
               'string',              # filename
               'string[]',            # command line args
               'int',                 # num_command_line_args
-              'opaque[]',            # (CXUnsavedFile*) unsaved_files
+              'CXUnsavedFile[]',     # (CXUnsavedFile*) unsaved_files
               'uint',                # num_unsaved_files
               'uint',                # options
-              'opaque*',             # (CXTranslationUnit*) out_TU
+              'CXTranslationUnit*',  # (CXTranslationUnit*) out_TU
             ] => 'CXErrorCode'),
             _parse_translation_unit_2_full_argv => $make_build->( parseTranslationUnit2FullArgv => [
               'CXIndex',             # Index
               'string',              # filename
               'string[]',            # command line args
               'int',                 # num_command_line_args
-              'opaque[]',            # (CXUnsavedFile*) unsaved_files
+              'CXUnsavedFile[]',     # (CXUnsavedFile*) unsaved_files
               'uint',                # num_unsaved_files
               'uint',                # options
-              'opaque*',             # (CXTranslationUnit*) out_TU
+              'CXTranslationUnit*',  # (CXTranslationUnit*) out_TU
             ] => 'CXErrorCode'),
             _dispose_translation_unit => $make_method->( disposeTranslationUnit => ['CXTranslationUnit'] => 'void' ),
             spelling => $make_method->( getTranslationUnitSpelling => ['CXTranslationUnit'] => 'CXString' ),
