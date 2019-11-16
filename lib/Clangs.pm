@@ -94,7 +94,7 @@ package Clangs {
       isa     => 'Maybe[Str]',
       lazy    => 1,
       default => sub ($self) {
-        my $ffi = FFI::Platypus->new( api => 1, experimental => 1 );
+        my $ffi = FFI::Platypus->new( api => 1 );
         $ffi->lib($self->path->stringify);
         $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
 
@@ -133,7 +133,7 @@ package Clangs {
 
     sub generate_classes ($self, $class)
     {
-      my $ffi = FFI::Platypus->new( api => 1, experimental => 1 );
+      my $ffi = FFI::Platypus->new( api => 1 );
       $ffi->lib($self->path->stringify);
       $ffi->mangler(sub ($symbol) { $symbol =~ s/^/clang_/r });
       $ffi->type('opaque' => 'CXIndex');
